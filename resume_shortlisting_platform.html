@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Shortlisting Platform</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .status-pending { background-color: #fef3c7; color: #92400e; }
+        .status-shortlisted { background-color: #d1fae5; color: #047857; }
+        .status-rejected { background-color: #fee2e2; color: #dc2626; }
+        .notification-badge { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useContext, createContext, useCallback } = React;
+
+        // Context for global state management
+        const AppContext = createContext();
+
+        // Mock data
+        const mockUsers = [
+            { id: 1, email: 'admin@company.com', password: 'admin123', role: 'Admin', name: 'Admin User' },
+            { id: 2, email: 'recruiter@company.com', password: 'recruiter123', role: 'Recruiter', name: 'John Recruiter' },
+            { id: 3, email: 'hr@company.com', password: 'hr123', role: 'HR', name: 'Sarah HR' }
+        ];
+
+        const mockCandidates = [
+            {
+                id: 1,
+                name: 'Alice Johnson',
+                email: 'alice@email.com',
+                phone: '+1-555-0101',
+                skills: ['React', 'JavaScript', 'Node.js', 'MongoDB'],
+                experience: 3,
+                location: 'New York',
+                education: 'Bachelor',
+                status: 'pending',
+                resumeUrl: '#',
+                appliedDate: '2024-01-15',
+                summary: 'Experienced frontend developer with expertise in modern web technologies.',
+                previousCompany: 'Tech Solutions Inc.',
+                expectedSalary: '$75,000'
+            },
+            {
+                id: 2,
+                name: 'Bob Smith',
+                email: 'bob@email.com',
+                phone: '+1-555-0102',
+                skills: ['Python', 'Django', 'PostgreSQL', 'AWS'],
+                experience: 5,
+                location: 'San Francisco',
+                education: 'Master',
+                status: 'shortlisted',
+                resumeUrl: '#',
+                appliedDate: '2024-01-16',
+                summary: 'Senior backend developer with cloud infrastructure experience.',
+                previousCompany: 'Cloud Systems LLC',
+                expectedSalary: '$95,000'
+            },
+            {
+                id: 3,
+                name: 'Carol Davis',
+                email: 'carol@email.com',
+                phone: '+1-555-0103',
+                skills: ['Java', 'Spring', 'MySQL', 'Docker'],
+                experience: 2,
+                location: 'Chicago',
+                education: 'Bachelor',
+                status: 'rejected',
+                resumeUrl: '#',
+                appliedDate: '2024-01-17',
+                summary: 'Junior developer with strong fundamentals in enterprise technologies.',
+                previousCompany: 'Enterprise Corp',
+                expectedSalary: '$65,000'
+            },
+            {
+                id: 4,
+                name: 'David Wilson',
+                email: 'david@email.com',
+                phone: '+1-555-0104',
+                skills: ['React', 'TypeScript', 'GraphQL', 'Next.js'],
+                experience: 4,
+                location: 'Austin',
+                education: 'Bachelor',
+                status: 'pending',
+                resumeUrl: '#',
+                appliedDate: '2024-01-18',
+                summary: 'Full-stack developer specializing in modern JavaScript frameworks.',
+                previousCompany: 'Startup Inc',
+                expectedSalary: '$85,000'
+            },
+            {
+                id: 5,
+                name: 'Eva Brown',
+                email: 'eva@email.com',
+                phone: '+1-555-0105',
+                skills: ['Vue.js', 'PHP', 'Laravel', 'Redis'],
+                experience: 6,
+                location: 'Seattle',
+                education: 'Master',
+                status: 'shortlisted',
+                resumeUrl: '#',
+                appliedDate: '2024-01-19',
+                summary: 'Senior full-stack developer with extensive PHP and Vue.js experience.',
+                previousCompany: 'Web Solutions Co',
+                expectedSalary: '$105,000'
+            }
+        ];
+
+        // App Provider Component
+        function AppProvider({ children }) {
+            const [user, setUser] = useState(null);
+            const [candidates, setCandidates] = useState(mockCandidates);
+            const [notifications, setNotifications] = useState([
+                { id: 1, message: 'New application from Alice Johnson', type: 'info', timestamp: new Date() },
+                { id: 2, message: 'Bob Smith has been shortlisted', type: 'success', timestamp: new Date() }
+            ]);
+
+            const login = (email, password) => {
+                const foundUser = mockUsers.find(u => u.email === email && u.password === password);
+                if (foundUser) {
+                    setUser(foundUser);
+                    return true;
+                }
+                return false;
+            };
+
+            const logout = () => {
+                setUser(null);
+            };
+
+            const updateCandidateStatus = (candidateId, status) => {
+                setCandidates(prev => prev.map(candidate => 
+                    candidate.id === candidateId ? { ...candidate, status } : candidate
+                ));
+                
+                const candidate = candidates.find(c => c.id === candidateId);
+                if (candidate) {
+                    setNotifications(prev => [...prev, {
+                        id: Date.now(),
+                        message: `${candidate.name} status updated to ${status}`,
+                        type: status === 'shortlisted' ? 'success' : status === 'rejected' ? 'danger' : 'info',
+                        timestamp: new Date()
+                    }]);
+                }
+            };
+
+            const addCandidate = (candidateData) => {
+                const newCandidate = {
+                    ...candidateData,
+                    id: Date.now(),
+                    status: 'pending',
+                    appliedDate: new Date().toISOString().split('T')[0]
+                };
+                setCandidates(prev => [...prev, newCandidate]);
+                setNotifications(prev => [...prev, {
+                    id: Date.now(),
+                    message: `New application from ${candidateData.name}`,
+                    type: 'info',
+                    timestamp: new Date()
+                }]);
+            };
+
+            const clearNotifications = () => {
+                setNotifications([]);
+            };
+
+            return (
+                <AppContext.Provider value={{
+                    user,
+                    candidates,
+                    notifications,
+                    login,
+                    logout,
+                    updateCandidateStatus,
+                    addCandidate,
+                    clearNotifications
+                }}>
+                    {children}
+                </AppContext.Provider>
+            );
+        }
+
+        // Login Component
+        function Login() {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+            const { login } = useContext(AppContext);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (login(email, password)) {
+                    setError('');
+                } else {
+                    setError('Invalid credentials');
+                }
+            };
+
+            const demoLogin = (role) => {
+                const demoUser = mockUsers.find(u => u.role === role);
+                setEmail(demoUser.email);
+                setPassword(demoUser.password);
+            };
+
+            return (
+                <div className="min-h-screen gradient-bg flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md">
+                        <div className="text-center mb-8">
+                            <h1 className="text-3xl font-bold text-gray-800 mb-2">Resume Platform</h1>
+                            <p className="text-gray-600">Sign in to your account</p>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            {error && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                                    {error}
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Email Address
+                                </label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    required
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200"
+                            >
+                                Sign In
+                            </button>
+                        </form>
+
+                        <div className="mt-8 pt-6 border-t border-gray-200">
+                            <p className="text-sm text-gray-600 mb-4 text-center">Demo Accounts:</p>
+                            <div className="space-y-2">
+                                <button
+                                    onClick={() => demoLogin('Admin')}
+                                    className="w-full text-left px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+                                >
+                                    <strong>Admin:</strong> admin@company.com / admin123
+                                </button>
+                                <button
+                                    onClick={() => demoLogin('Recruiter')}
+                                    className="w-full text-left px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+                                >
+                                    <strong>Recruiter:</strong> recruiter@company.com / recruiter123
+                                </button>
+                                <button
+                                    onClick={() => demoLogin('HR')}
+                                    className="w-full text-left px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+                                >
+                                    <strong>HR:</strong> hr@company.com / hr123
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Header Component
+        function Header() {
+            const { user, logout, notifications, clearNotifications } = useContext(AppContext);
+            const [showNotifications, setShowNotifications] = useState(false);
+
+            return (
+                <header className="bg-white shadow-sm border-b">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex justify-between items-center h-16">
+                            <div className="flex items-center">
+                                <h1 className="text-xl font-semibold text-gray-900">Resume Platform</h1>
+                                <span className="ml-4 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                                    {user?.role}
+                                </span>
+                            </div>
+                            
+                            <div className="flex items-center space-x-4">
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowNotifications(!showNotifications)}
+                                        className="relative p-2 text-gray-400 hover:text-gray-500"
+                                    >
+                                        <i className="fas fa-bell text-lg"></i>
+                                        {notifications.length > 0 && (
+                                            <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center notification-badge">
+                                                {notifications.length}
+                                            </span>
+                                        )}
+                                    </button>
+                                    
+                                    {showNotifications && (
+                                        <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg py-1 z-50">
+                                            <div className="flex justify-between items-center px-4 py-2 border-b">
+                                                <h3 className="text-sm font-medium">Notifications</h3>
+                                                {notifications.length > 0 && (
+                                                    <button
+                                                        onClick={clearNotifications}
+                                                        className="text-xs text-blue-600 hover:text-blue-800"
+                                                    >
+                                                        Clear all
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {notifications.length === 0 ? (
+                                                <p className="px-4 py-3 text-sm text-gray-500">No notifications</p>
+                                            ) : (
+                                                <div className="max-h-64 overflow-y-auto">
+                                                    {notifications.map(notification => (
+                                                        <div key={notification.id} className="px-4 py-3 hover:bg-gray-50">
+                                                            <p className="text-sm text-gray-900">{notification.message}</p>
+                                                            <p className="text-xs text-gray-500">
+                                                                {notification.timestamp.toLocaleString()}
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-sm text-gray-700">Welcome, {user?.name}</span>
+                                    <button
+                                        onClick={logout}
+                                        className="text-sm text-red-600 hover:text-red-800"
+                                    >
+                                        Logout
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+            );
+        }
+
+        // Filters Component
+        function Filters({ filters, setFilters, candidates }) {
+            const allSkills = [...new Set(candidates.flatMap(c => c.skills))];
+            const allLocations = [...new Set(candidates.map(c => c.location))];
+
+            return (
+                <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Filters</h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Skills</label>
+                            <select
+                                value={filters.skills}
+                                onChange={(e) => setFilters({...filters, skills: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="">All Skills</option>
+                                {allSkills.map(skill => (
+                                    <option key={skill} value={skill}>{skill}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Experience</label>
+                            <select
+                                value={filters.experience}
+                                onChange={(e) => setFilters({...filters, experience: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="">All Experience</option>
+                                <option value="0-2">0-2 years</option>
+                                <option value="3-5">3-5 years</option>
+                                <option value="5+">5+ years</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                            <select
+                                value={filters.location}
+                                onChange={(e) => setFilters({...filters, location: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="">All Locations</option>
+                                {allLocations.map(location => (
+                                    <option key={location} value={location}>{location}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Education</label>
+                            <select
+                                value={filters.education}
+                                onChange={(e) => setFilters({...filters, education: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="">All Education</option>
+                                <option value="Bachelor">Bachelor</option>
+                                <option value="Master">Master</option>
+                                <option value="PhD">PhD</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="mt-4 flex justify-between items-center">
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={() => setFilters({...filters, status: ''})}
+                                className={`px-3 py-1 rounded-full text-sm ${filters.status === '' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'}`}
+                            >
+                                All
+                            </button>
+                            <button
+                                onClick={() => setFilters({...filters, status: 'pending'})}
+                                className={`px-3 py-1 rounded-full text-sm ${filters.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-600'}`}
+                            >
+                                Pending
+                            </button>
+                            <button
+                                onClick={() => setFilters({...filters, status: 'shortlisted'})}
+                                className={`px-3 py-1 rounded-full text-sm ${filters.status === 'shortlisted' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}
+                            >
+                                Shortlisted
+                            </button>
+                            <button
+                                onClick={() => setFilters({...filters, status: 'rejected'})}
+                                className={`px-3 py-1 rounded-full text-sm ${filters.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}
+                            >
+                                Rejected
+                            </button>
+                        </div>
+                        
+                        <button
+                            onClick={() => setFilters({ skills: '', experience: '', location: '', education: '', status: '' })}
+                            className="text-sm text-blue-600 hover:text-blue-800"
+                        >
+                            Clear Filters
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Candidate Card Component
+        function CandidateCard({ candidate, onStatusChange, onViewDetails }) {
+            const getStatusClass = (status) => {
+                switch (status) {
+                    case 'pending': return 'status-pending';
+                    case 'shortlisted': return 'status-shortlisted';
+                    case 'rejected': return 'status-rejected';
+                    default: return 'bg-gray-100 text-gray-600';
+                }
+            };
+
+            return (
+                <div className="bg-white rounded-lg shadow-sm border card-hover p-6">
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 className="text-lg font-semibold text-gray-900">{candidate.name}</h3>
+                            <p className="text-sm text-gray-600">{candidate.email}</p>
+                            <p className="text-sm text-gray-600">{candidate.location}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(candidate.status)}`}>
+                            {candidate.status.charAt(0).toUpperCase() + candidate.status.slice(1)}
+                        </span>
+                    </div>
+
+                    <div className="mb-4">
+                        <p className="text-sm text-gray-700 mb-2">
+                            <strong>Experience:</strong> {candidate.experience} years
+                        </p>
+                        <p className="text-sm text-gray-700 mb-2">
+                            <strong>Education:</strong> {candidate.education}
+                        </p>
+                        <div className="mb-2">
+                            <p className="text-sm text-gray-700 mb-1"><strong>Skills:</strong></p>
+                            <div className="flex flex-wrap gap-1">
+                                {candidate.skills.map(skill => (
+                                    <span key={skill} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                                        {skill}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            onClick={() => onViewDetails(candidate)}
+                            className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded hover:bg-gray-200 transition duration-200"
+                        >
+                            <i className="fas fa-eye mr-1"></i> View Details
+                        </button>
+                        <a
+                            href={candidate.resumeUrl}
+                            className="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded hover:bg-blue-200 transition duration-200"
+                        >
+                            <i className="fas fa-download mr-1"></i> Resume
+                        </a>
+                        <select
+                            value={candidate.status}
+                            onChange={(e) => onStatusChange(candidate.id, e.target.value)}
+                            className="px-2 py-1 border border-gray-300 text-sm rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="pending">Pending</option>
+                            <option value="shortlisted">Shortlisted</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                    </div>
+                </div>
+            );
+        }
+
+        // Candidate Details Modal
+        function CandidateDetailsModal({ candidate, onClose }) {
+            if (!candidate) return null;
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center p-6 border-b">
+                            <h2 className="text-2xl font-bold text-gray-900">Candidate Details</h2>
+                            <button
+                                onClick={onClose}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <i className="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        
+                        <div className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h3>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Name</label>
+                                            <p className="text-sm text-gray-900">{candidate.name}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Email</label>
+                                            <p className="text-sm text-gray-900">{candidate.email}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Phone</label>
+                                            <p className="text-sm text-gray-900">{candidate.phone}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Location</label>
+                                            <p className="text-sm text-gray-900">{candidate.location}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Professional Information</h3>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Experience</label>
+                                            <p className="text-sm text-gray-900">{candidate.experience} years</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Education</label>
+                                            <p className="text-sm text-gray-900">{candidate.education}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Previous Company</label>
+                                            <p className="text-sm text-gray-900">{candidate.previousCompany}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Expected Salary</label>
+                                            <p className="text-sm text-gray-900">{candidate.expectedSalary}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="mt-6">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Skills</h3>
+                                <div className="flex flex-wrap gap-2">
+                                    {candidate.skills.map(skill => (
+                                        <span key={skill} className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                                            {skill}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div className="mt-6">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Summary</h3>
+                                <p className="text-sm text-gray-700">{candidate.summary}</p>
+                            </div>
+                            
+                            <div className="mt-6 flex justify-between items-center">
+                                <p className="text-sm text-gray-500">Applied on: {candidate.appliedDate}</p>
+                                <a
+                                    href={candidate.resumeUrl}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition duration-200"
+                                >
+                                    <i className="fas fa-download mr-2"></i>
+                                    Download Resume
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Add Candidate Modal
+        function AddCandidateModal({ onClose, onAdd }) {
+            const [formData, setFormData] = useState({
+                name: '',
+                email: '',
+                phone: '',
+                location: '',
+                experience: '',
+                education: 'Bachelor',
+                skills: '',
+                summary: '',
+                previousCompany: '',
+                expectedSalary: '',
+                resumeUrl: '#'
+            });
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onAdd({
+                    ...formData,
+                    experience: parseInt(formData.experience),
+                    skills: formData.skills.split(',').map(skill => skill.trim())
+                });
+                onClose();
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center p-6 border-b">
+                            <h2 className="text-2xl font-bold text-gray-900">Add New Candidate</h2>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                                <i className="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        
+                        <form onSubmit={handleSubmit} className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                                    <input
+                                        type="text"
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+                                    <input
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                                    <input
+                                        type="tel"
+                                        value={formData.phone}
+                                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                                    <input
+                                        type="text"
+                                        value={formData.location}
+                                        onChange={(e) => setFormData({...formData, location: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Experience (years) *</label>
+                                    <input
+                                        type="number"
+                                        value={formData.experience}
+                                        onChange={(e) => setFormData({...formData, experience: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        required
+                                        min="0"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Education</label>
+                                    <select
+                                        value={formData.education}
+                                        onChange={(e) => setFormData({...formData, education: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="Bachelor">Bachelor</option>
+                                        <option value="Master">Master</option>
+                                        <option value="PhD">PhD</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Previous Company</label>
+                                    <input
+                                        type="text"
+                                        value={formData.previousCompany}
+                                        onChange={(e) => setFormData({...formData, previousCompany: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Expected Salary</label>
+                                    <input
+                                        type="text"
+                                        value={formData.expectedSalary}
+                                        onChange={(e) => setFormData({...formData, expectedSalary: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="e.g., $75,000"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="mt-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Skills (comma separated) *</label>
+                                <input
+                                    type="text"
+                                    value={formData.skills}
+                                    onChange={(e) => setFormData({...formData, skills: e.target.value})}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., React, JavaScript, Node.js"
+                                    required
+                                />
+                            </div>
+                            
+                            <div className="mt-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Summary</label>
+                                <textarea
+                                    value={formData.summary}
+                                    onChange={(e) => setFormData({...formData, summary: e.target.value})}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    rows="3"
+                                    placeholder="Brief description of the candidate..."
+                                />
+                            </div>
+                            
+                            <div className="mt-6 flex justify-end space-x-3">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                                >
+                                    Add Candidate
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // Dashboard Component
+        function Dashboard() {
+            const { candidates, updateCandidateStatus, addCandidate, user } = useContext(AppContext);
+            const [filters, setFilters] = useState({
+                skills: '',
+                experience: '',
+                location: '',
+                education: '',
+                status: ''
+            });
+            const [selectedCandidate, setSelectedCandidate] = useState(null);
+            const [showAddModal, setShowAddModal] = useState(false);
+
+            const filteredCandidates = candidates.filter(candidate => {
+                if (filters.skills && !candidate.skills.includes(filters.skills)) return false;
+                if (filters.location && candidate.location !== filters.location) return false;
+                if (filters.education && candidate.education !== filters.education) return false;
+                if (filters.status && candidate.status !== filters.status) return false;
+                if (filters.experience) {
+                    const exp = candidate.experience;
+                    if (filters.experience === '0-2' && exp > 2) return false;
+                    if (filters.experience === '3-5' && (exp < 3 || exp > 5)) return false;
+                    if (filters.experience === '5+' && exp < 5) return false;
+                }
+                return true;
+            });
+
+            const stats = {
+                total: candidates.length,
+                pending: candidates.filter(c => c.status === 'pending').length,
+                shortlisted: candidates.filter(c => c.status === 'shortlisted').length,
+                rejected: candidates.filter(c => c.status === 'rejected').length
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    <Header />
+                    
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        {/* Stats Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                            <div className="bg-white rounded-lg shadow-sm p-6">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-blue-100 rounded-lg">
+                                        <i className="fas fa-users text-blue-600 text-xl"></i>
+                                    </div>
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">Total Candidates</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-white rounded-lg shadow-sm p-6">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-yellow-100 rounded-lg">
+                                        <i className="fas fa-clock text-yellow-600 text-xl"></i>
+                                    </div>
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">Pending</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-white rounded-lg shadow-sm p-6">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-green-100 rounded-lg">
+                                        <i className="fas fa-check-circle text-green-600 text-xl"></i>
+                                    </div>
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">Shortlisted</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stats.shortlisted}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-white rounded-lg shadow-sm p-6">
+                                <div className="flex items-center">
+                                    <div className="p-2 bg-red-100 rounded-lg">
+                                        <i className="fas fa-times-circle text-red-600 text-xl"></i>
+                                    </div>
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">Rejected</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stats.rejected}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-gray-900">Candidates</h2>
+                            {(user?.role === 'Admin' || user?.role === 'HR') && (
+                                <button
+                                    onClick={() => setShowAddModal(true)}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200"
+                                >
+                                    <i className="fas fa-plus mr-2"></i>
+                                    Add Candidate
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Filters */}
+                        <Filters filters={filters} setFilters={setFilters} candidates={candidates} />
+
+                        {/* Candidates Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {filteredCandidates.map(candidate => (
+                                <CandidateCard
+                                    key={candidate.id}
+                                    candidate={candidate}
+                                    onStatusChange={updateCandidateStatus}
+                                    onViewDetails={setSelectedCandidate}
+                                />
+                            ))}
+                        </div>
+
+                        {filteredCandidates.length === 0 && (
+                            <div className="text-center py-12">
+                                <i className="fas fa-search text-gray-400 text-4xl mb-4"></i>
+                                <h3 className="text-lg font-medium text-gray-900 mb-2">No candidates found</h3>
+                                <p className="text-gray-600">Try adjusting your filters or add new candidates.</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Modals */}
+                    {selectedCandidate && (
+                        <CandidateDetailsModal
+                            candidate={selectedCandidate}
+                            onClose={() => setSelectedCandidate(null)}
+                        />
+                    )}
+
+                    {showAddModal && (
+                        <AddCandidateModal
+                            onClose={() => setShowAddModal(false)}
+                            onAdd={addCandidate}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        // Main App Component
+        function App() {
+            const { user } = useContext(AppContext);
+
+            return user ? <Dashboard /> : <Login />;
+        }
+
+        // Root Component
+        function Root() {
+            return (
+                <AppProvider>
+                    <App />
+                </AppProvider>
+            );
+        }
+
+        // Render the app
+        ReactDOM.render(<Root />, document.getElementById('root'));
+                    
